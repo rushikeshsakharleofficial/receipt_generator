@@ -146,7 +146,9 @@ class ReceiptGenerator {
         });
 
         // Receipt number change for barcode
-        this.receiptNumber.addEventListener('input', () => this.generateBarcode());
+        if (this.receiptNumber) {
+            this.receiptNumber.addEventListener('input', () => this.generateBarcode());
+        }
 
         // Customer search
         let searchTimeout;
@@ -350,7 +352,11 @@ class ReceiptGenerator {
     generateReceiptNumber() {
         const now = new Date();
         const num = `RCP-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
-        this.receiptNumber.value = num;
+        if (this.receiptNumber) {
+            this.receiptNumber.value = num;
+        }
+        // Store internal reference for preview/submit since input might be gone
+        this.currentReceiptNumber = num;
         this.generateBarcode();
     }
 
@@ -367,11 +373,11 @@ class ReceiptGenerator {
     }
 
     renderItems() {
-        this.itemsContainer.innerHTML = this.items.map(item => `
+        this.itemsContainer.innerHTML = this.items.map((item, index) => `
             <div class="item-row" data-id="${item.id}">
-                <input type="text" class="item-desc" value="${item.description}" placeholder="Item description">
-                <input type="number" class="item-qty" value="${item.quantity}" min="1" step="1">
-                <input type="number" class="item-price" value="${item.price}" min="0" step="0.01" placeholder="0.00">
+                <input type="text" class="item-desc" id="item-desc-${index}" value="${item.description}" placeholder="Item description">
+                <input type="number" class="item-qty" id="item-qty-${index}" value="${item.quantity}" min="1" step="1">
+                <input type="number" class="item-price" id="item-price-${index}" value="${item.price}" min="0" step="0.01" placeholder="0.00">
                 <button type="button" class="btn-remove" title="Remove item">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M18 6L6 18M6 6l12 12"/>
@@ -381,28 +387,40 @@ class ReceiptGenerator {
         `).join('');
 
         // Bind events to new items
-        this.itemsContainer.querySelectorAll('.item-row').forEach(row => {
+        this.itemsContainer.querySelectorAll('.item-row').forEach((row, index) => {
             const id = parseInt(row.dataset.id);
             const item = this.items.find(i => i.id === id);
 
-            row.querySelector('.item-desc').addEventListener('input', (e) => {
-                item.description = e.target.value;
-                this.updatePreview();
-            });
+            if (item) {
+                const descInput = document.getElementById(`item-desc-${index}`);
+                const qtyInput = document.getElementById(`item-qty-${index}`);
+                const priceInput = document.getElementById(`item-price-${index}`);
 
-            row.querySelector('.item-qty').addEventListener('input', (e) => {
-                item.quantity = parseFloat(e.target.value) || 0;
-                this.updatePreview();
-            });
+                if (descInput) {
+                    descInput.addEventListener('input', (e) => {
+                        item.description = e.target.value;
+                        this.updatePreview();
+                    });
+                }
 
-            row.querySelector('.item-price').addEventListener('input', (e) => {
-                item.price = parseFloat(e.target.value) || 0;
-                this.updatePreview();
-            });
+                if (qtyInput) {
+                    qtyInput.addEventListener('input', (e) => {
+                        item.quantity = parseFloat(e.target.value) || 0;
+                        this.updatePreview();
+                    });
+                }
 
-            row.querySelector('.btn-remove').addEventListener('click', () => {
-                this.removeItem(id);
-            });
+                if (priceInput) {
+                    priceInput.addEventListener('input', (e) => {
+                        item.price = parseFloat(e.target.value) || 0;
+                        this.updatePreview();
+                    });
+                }
+
+                row.querySelector('.btn-remove').addEventListener('click', () => {
+                    this.removeItem(id);
+                });
+            }
         });
     }
 
@@ -416,7 +434,8 @@ class ReceiptGenerator {
         this.previewBusinessTax.textContent = this.businessProfile.tax_id ? `GST: ${this.businessProfile.tax_id}` : '';
 
         // Receipt Info
-        this.previewReceiptNumber.textContent = this.receiptNumber.value || '---';
+        // Receipt Info
+        this.previewReceiptNumber.textContent = this.currentReceiptNumber || (this.receiptNumber ? this.receiptNumber.value : '---');
         this.previewCashier.textContent = this.cashier.value || '---';
 
         // Customer
@@ -505,7 +524,7 @@ class ReceiptGenerator {
     }
 
     generateBarcode() {
-        const code = this.receiptNumber.value || 'RCP-000000';
+        const code = this.currentReceiptNumber || (this.receiptNumber ? this.receiptNumber.value : 'RCP-' + Date.now());
         this.barcodeNumber.textContent = `*${code}*`;
 
         // Generate simple barcode pattern
@@ -543,9 +562,8 @@ class ReceiptGenerator {
         const amountPaid = parseFloat(this.amountPaid.value) || total;
         const change = Math.max(0, amountPaid - total);
 
-        // Generate receipt number if not present (although we try to keep it consistent via generateReceiptNumber)
-        // Since we removed input, we use the value stored in the object property or regenerate
-        const receiptNumber = this.receiptNumber.value || `RCP-${Date.now()}`;
+        // Generate receipt number if not present
+        const receiptNumber = this.currentReceiptNumber || (this.receiptNumber ? this.receiptNumber.value : `RCP-${Date.now()}`);
 
         return {
             receipt_number: receiptNumber,
