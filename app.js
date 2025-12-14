@@ -387,35 +387,25 @@ class ReceiptGenerator {
         `).join('');
 
         // Bind events to new items
-        this.itemsContainer.querySelectorAll('.item-row').forEach((row, index) => {
+        this.itemsContainer.querySelectorAll('.item-row').forEach(row => {
             const id = parseInt(row.dataset.id);
             const item = this.items.find(i => i.id === id);
 
             if (item) {
-                const descInput = document.getElementById(`item-desc-${index}`);
-                const qtyInput = document.getElementById(`item-qty-${index}`);
-                const priceInput = document.getElementById(`item-price-${index}`);
+                row.querySelector('.item-desc').addEventListener('input', (e) => {
+                    item.description = e.target.value;
+                    this.updatePreview();
+                });
 
-                if (descInput) {
-                    descInput.addEventListener('input', (e) => {
-                        item.description = e.target.value;
-                        this.updatePreview();
-                    });
-                }
+                row.querySelector('.item-qty').addEventListener('input', (e) => {
+                    item.quantity = parseFloat(e.target.value) || 0;
+                    this.updatePreview();
+                });
 
-                if (qtyInput) {
-                    qtyInput.addEventListener('input', (e) => {
-                        item.quantity = parseFloat(e.target.value) || 0;
-                        this.updatePreview();
-                    });
-                }
-
-                if (priceInput) {
-                    priceInput.addEventListener('input', (e) => {
-                        item.price = parseFloat(e.target.value) || 0;
-                        this.updatePreview();
-                    });
-                }
+                row.querySelector('.item-price').addEventListener('input', (e) => {
+                    item.price = parseFloat(e.target.value) || 0;
+                    this.updatePreview();
+                });
 
                 row.querySelector('.btn-remove').addEventListener('click', () => {
                     this.removeItem(id);
@@ -462,13 +452,14 @@ class ReceiptGenerator {
         }
 
         // Items
+        // Items
+        // console.log('Rendering preview items:', this.items);
         this.previewItems.innerHTML = this.items
-            .filter(item => item.description)
             .map(item => {
                 const total = item.quantity * item.price;
                 return `
                     <div class="receipt-item">
-                        <span class="item-desc">${item.description}</span>
+                        <span class="item-desc">${item.description || ''}</span>
                         <span class="item-qty">${item.quantity}</span>
                         <span class="item-price">${symbol}${total.toFixed(2)}</span>
                     </div>

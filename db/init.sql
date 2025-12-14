@@ -90,6 +90,7 @@ CREATE TABLE IF NOT EXISTS receipts (
     payment_method VARCHAR(50),
     amount_paid DECIMAL(10,2) DEFAULT 0,
     change_amount DECIMAL(10,2) DEFAULT 0,
+    cashier VARCHAR(100),
     notes TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL,
