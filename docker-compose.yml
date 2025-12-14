@@ -15,11 +15,10 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    volumes:
-      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    volumes: []
 
   db:
-    image: mariadb:latest
+    image: linuxhardened/receipt_db
     container_name: receipt_db
     restart: unless-stopped
     environment:
@@ -31,7 +30,6 @@ services:
       - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: [ "CMD", "healthcheck.sh", "--connect", "--innodb_initialized" ]
       interval: 10s
