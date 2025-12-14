@@ -178,6 +178,35 @@ class ReceiptGenerator {
             this.updatePreview();
         });
 
+        // Items Event Delegation (Robust handling for dynamic items)
+        this.itemsContainer.addEventListener('input', (e) => {
+            const row = e.target.closest('.item-row');
+            if (!row) return;
+
+            const id = Number(row.dataset.id);
+            const item = this.items.find(i => i.id === id);
+
+            if (item) {
+                if (e.target.matches('.item-desc')) {
+                    item.description = e.target.value;
+                } else if (e.target.matches('.item-qty')) {
+                    item.quantity = parseFloat(e.target.value) || 0;
+                } else if (e.target.matches('.item-price')) {
+                    item.price = parseFloat(e.target.value) || 0;
+                }
+                this.updatePreview();
+            }
+        });
+
+        this.itemsContainer.addEventListener('click', (e) => {
+            const btn = e.target.closest('.btn-remove');
+            if (btn) {
+                const row = btn.closest('.item-row');
+                const id = Number(row.dataset.id);
+                this.removeItem(id);
+            }
+        });
+
         // Action buttons
         this.saveAndDownloadBtn.addEventListener('click', () => this.saveAndDownloadPDF());
         this.printBtn.addEventListener('click', () => this.print());
@@ -385,133 +414,121 @@ class ReceiptGenerator {
                 </button>
             </div>
         `).join('');
-
-        // Bind events to new items
-        this.itemsContainer.querySelectorAll('.item-row').forEach(row => {
-            const id = parseInt(row.dataset.id);
-            const item = this.items.find(i => i.id === id);
-
-            if (item) {
-                row.querySelector('.item-desc').addEventListener('input', (e) => {
-                    item.description = e.target.value;
-                    this.updatePreview();
-                });
-
-                row.querySelector('.item-qty').addEventListener('input', (e) => {
-                    item.quantity = parseFloat(e.target.value) || 0;
-                    this.updatePreview();
-                });
-
-                row.querySelector('.item-price').addEventListener('input', (e) => {
-                    item.price = parseFloat(e.target.value) || 0;
-                    this.updatePreview();
-                });
-
-                row.querySelector('.btn-remove').addEventListener('click', () => {
-                    this.removeItem(id);
-                });
-            }
-        });
     }
 
     updatePreview() {
-        const symbol = this.currentCurrency.symbol;
+        try {
+            // console.log('UpdatePreview called');
+            const symbol = this.currentCurrency.symbol;
 
-        // Business Info (from profile)
-        this.previewBusinessName.textContent = this.businessProfile.business_name || 'BUSINESS NAME';
-        this.previewBusinessAddress.textContent = this.businessProfile.address || '';
-        this.previewBusinessPhone.textContent = this.businessProfile.phone ? `Tel: ${this.businessProfile.phone}` : '';
-        this.previewBusinessTax.textContent = this.businessProfile.tax_id ? `GST: ${this.businessProfile.tax_id}` : '';
+            // Business Info (from profile)
+            if (this.previewBusinessName) this.previewBusinessName.textContent = this.businessProfile.business_name || 'BUSINESS NAME';
+            if (this.previewBusinessAddress) this.previewBusinessAddress.textContent = this.businessProfile.address || '';
+            if (this.previewBusinessPhone) this.previewBusinessPhone.textContent = this.businessProfile.phone ? `Tel: ${this.businessProfile.phone}` : '';
+            if (this.previewBusinessTax) this.previewBusinessTax.textContent = this.businessProfile.tax_id ? `GST: ${this.businessProfile.tax_id}` : '';
 
-        // Receipt Info
-        // Receipt Info
-        this.previewReceiptNumber.textContent = this.currentReceiptNumber || (this.receiptNumber ? this.receiptNumber.value : '---');
-        this.previewCashier.textContent = this.cashier.value || '---';
+            // Receipt Info
+            if (this.previewReceiptNumber) this.previewReceiptNumber.textContent = this.currentReceiptNumber || (this.receiptNumber ? this.receiptNumber.value : '---');
+            if (this.previewCashier) this.previewCashier.textContent = this.cashier.value || '---';
 
-        // Customer
-        if (this.selectedCustomer) {
-            this.previewCustomerRow.style.display = 'flex';
-            this.previewCustomer.textContent = this.selectedCustomer.name;
-        } else {
-            this.previewCustomerRow.style.display = 'none';
+            // Customer
+            if (this.selectedCustomer) {
+                if (this.previewCustomerRow) this.previewCustomerRow.style.display = 'flex';
+                if (this.previewCustomer) this.previewCustomer.textContent = this.selectedCustomer.name;
+            } else {
+                if (this.previewCustomerRow) this.previewCustomerRow.style.display = 'none';
+            }
+
+            // Date formatting
+            if (this.receiptDate && this.receiptDate.value && this.previewDate) {
+                try {
+                    const date = new Date(this.receiptDate.value);
+                    this.previewDate.textContent = date.toLocaleDateString('en-GB');
+                } catch (e) {
+                    console.error('Date error', e);
+                }
+            }
+
+            // Time formatting
+            if (this.receiptTime && this.receiptTime.value && this.previewTime) {
+                try {
+                    const [hours, minutes] = this.receiptTime.value.split(':');
+                    const h = parseInt(hours);
+                    const ampm = h >= 12 ? 'PM' : 'AM';
+                    const h12 = h % 12 || 12;
+                    this.previewTime.textContent = `${h12}:${minutes} ${ampm}`;
+                } catch (e) {
+                    console.error('Time error', e);
+                }
+            }
+
+            // Items
+            if (this.items && this.previewItems) {
+                // console.log('Rendering items:', this.items.length);
+                this.previewItems.innerHTML = this.items
+                    .map(item => {
+                        const total = item.quantity * item.price;
+                        return `
+                            <div class="receipt-item">
+                                <span class="item-desc">${item.description || ''}</span>
+                                <span class="item-qty">${item.quantity}</span>
+                                <span class="item-price">${symbol}${total.toFixed(2)}</span>
+                            </div>
+                        `;
+                    }).join('');
+            }
+
+            // Calculate totals
+            const subtotal = this.items.reduce((sum, item) => sum + (item.quantity * item.price), 0);
+            const discountAmount = parseFloat(this.discount.value) || 0;
+            const taxRateValue = parseFloat(this.taxRate.value) || 0;
+            const afterDiscount = subtotal - discountAmount;
+            const taxAmount = afterDiscount * (taxRateValue / 100);
+            const total = afterDiscount + taxAmount;
+            const amountPaid = parseFloat(this.amountPaid.value) || 0;
+            const change = amountPaid - total;
+
+            // Update totals display conditions
+            if (this.previewSubtotal) this.previewSubtotal.textContent = `${symbol}${subtotal.toFixed(2)}`;
+
+            if (discountAmount > 0) {
+                if (this.discountRow) this.discountRow.style.display = 'flex';
+                if (this.previewDiscount) this.previewDiscount.textContent = `-${symbol}${discountAmount.toFixed(2)}`;
+            } else {
+                if (this.discountRow) this.discountRow.style.display = 'none';
+            }
+
+            if (this.previewTaxRate) this.previewTaxRate.textContent = taxRateValue;
+            if (this.previewTax) this.previewTax.textContent = `${symbol}${taxAmount.toFixed(2)}`;
+            if (this.previewTotal) this.previewTotal.textContent = `${symbol}${total.toFixed(2)}`;
+
+            // Show INR equivalent if different currency
+            if (this.currentCurrency.code !== 'INR') {
+                if (this.inrEquivRow) this.inrEquivRow.style.display = 'flex';
+                const totalInr = total * this.currentCurrency.rate;
+                if (this.previewTotalInr) this.previewTotalInr.textContent = `₹${totalInr.toFixed(2)}`;
+            } else {
+                if (this.inrEquivRow) this.inrEquivRow.style.display = 'none';
+            }
+
+            // Payment
+            if (this.previewPaymentMethod) this.previewPaymentMethod.textContent = this.paymentMethod.value;
+            if (this.previewAmountPaid) this.previewAmountPaid.textContent = `${symbol}${amountPaid.toFixed(2)}`;
+            if (this.previewChange) this.previewChange.textContent = change >= 0 ? `${symbol}${change.toFixed(2)}` : `${symbol}0.00`;
+
+            // Auto-fill amount paid if empty
+            if (!this.amountPaid.value && total > 0) {
+                this.amountPaid.placeholder = total.toFixed(2);
+            }
+
+            // Footer (from profile)
+            const footerText = this.businessProfile.footer_message || 'Thank you for your purchase!';
+            if (this.previewFooter) this.previewFooter.innerHTML = footerText.split('\n').map(line => `<p>${line}</p>`).join('');
+
+        } catch (error) {
+            console.error('Preview Update Error:', error);
+            // alert('Preview Error: ' + error.message);
         }
-
-        // Date formatting
-        if (this.receiptDate.value) {
-            const date = new Date(this.receiptDate.value);
-            this.previewDate.textContent = date.toLocaleDateString('en-GB');
-        }
-
-        // Time formatting
-        if (this.receiptTime.value) {
-            const [hours, minutes] = this.receiptTime.value.split(':');
-            const h = parseInt(hours);
-            const ampm = h >= 12 ? 'PM' : 'AM';
-            const h12 = h % 12 || 12;
-            this.previewTime.textContent = `${h12}:${minutes} ${ampm}`;
-        }
-
-        // Items
-        // Items
-        // console.log('Rendering preview items:', this.items);
-        this.previewItems.innerHTML = this.items
-            .map(item => {
-                const total = item.quantity * item.price;
-                return `
-                    <div class="receipt-item">
-                        <span class="item-desc">${item.description || ''}</span>
-                        <span class="item-qty">${item.quantity}</span>
-                        <span class="item-price">${symbol}${total.toFixed(2)}</span>
-                    </div>
-                `;
-            }).join('');
-
-        // Calculate totals
-        const subtotal = this.items.reduce((sum, item) => sum + (item.quantity * item.price), 0);
-        const discountAmount = parseFloat(this.discount.value) || 0;
-        const taxRateValue = parseFloat(this.taxRate.value) || 0;
-        const afterDiscount = subtotal - discountAmount;
-        const taxAmount = afterDiscount * (taxRateValue / 100);
-        const total = afterDiscount + taxAmount;
-        const amountPaid = parseFloat(this.amountPaid.value) || 0;
-        const change = amountPaid - total;
-
-        // Update totals display
-        this.previewSubtotal.textContent = `${symbol}${subtotal.toFixed(2)}`;
-
-        if (discountAmount > 0) {
-            this.discountRow.style.display = 'flex';
-            this.previewDiscount.textContent = `-${symbol}${discountAmount.toFixed(2)}`;
-        } else {
-            this.discountRow.style.display = 'none';
-        }
-
-        this.previewTaxRate.textContent = taxRateValue;
-        this.previewTax.textContent = `${symbol}${taxAmount.toFixed(2)}`;
-        this.previewTotal.textContent = `${symbol}${total.toFixed(2)}`;
-
-        // Show INR equivalent if different currency
-        if (this.currentCurrency.code !== 'INR') {
-            this.inrEquivRow.style.display = 'flex';
-            const totalInr = total * this.currentCurrency.rate;
-            this.previewTotalInr.textContent = `₹${totalInr.toFixed(2)}`;
-        } else {
-            this.inrEquivRow.style.display = 'none';
-        }
-
-        // Payment
-        this.previewPaymentMethod.textContent = this.paymentMethod.value;
-        this.previewAmountPaid.textContent = `${symbol}${amountPaid.toFixed(2)}`;
-        this.previewChange.textContent = change >= 0 ? `${symbol}${change.toFixed(2)}` : `${symbol}0.00`;
-
-        // Auto-fill amount paid if empty
-        if (!this.amountPaid.value && total > 0) {
-            this.amountPaid.placeholder = total.toFixed(2);
-        }
-
-        // Footer (from profile)
-        const footerText = this.businessProfile.footer_message || 'Thank you for your purchase!';
-        this.previewFooter.innerHTML = footerText.split('\n').map(line => `<p>${line}</p>`).join('');
     }
 
     generateBarcode() {
