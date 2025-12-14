@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  app:
+    image: linuxhardened/receipt_generator
+    container_name: receipt_app
+    restart: unless-stopped
+    ports:
+      - "3002:3001"
+    environment:
+      - DB_HOST=receipt_db
+      - DB_USER=receipt_user
+      - DB_PASSWORD=receipt_pass_2024
+      - DB_NAME=receipt_db
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  db:
+    image: mariadb:latest
+    container_name: receipt_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root_pass_2024
+      MYSQL_DATABASE: receipt_db
+      MYSQL_USER: receipt_user
+      MYSQL_PASSWORD: receipt_pass_2024
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: [ "CMD", "healthcheck.sh", "--connect", "--innodb_initialized" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mysql_data:

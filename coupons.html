@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coupons - Receipt Generator</title>
+    <link rel="stylesheet" href="styles.css">
+    <link
+        href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="32" height="32" fill="#1a1a2e" />
+                        <path d="M8 8h16v4H8zM8 14h16v2H8zM8 18h12v2H8zM8 22h10v2H8z" fill="#ffffff" />
+                    </svg>
+                    <h1>Receipt Generator</h1>
+                </div>
+                <nav class="nav-links">
+                    <a href="/" class="nav-link">New Receipt</a>
+                    <a href="/dashboard" class="nav-link">Dashboard</a>
+                    <a href="/profile" class="nav-link">My Business</a>
+                    <a href="/coupons" class="nav-link active">Coupons</a>
+                </nav>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="profile-content">
+            <div class="profile-card">
+                <div class="profile-header">
+                    <div class="profile-icon" style="color: var(--accent-secondary);">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z">
+                            </path>
+                            <line x1="7" y1="7" x2="7.01" y2="7"></line>
+                        </svg>
+                    </div>
+                    <div class="profile-title">
+                        <h2>Manage Coupons</h2>
+                        <p>Create and manage discount codes</p>
+                    </div>
+                </div>
+
+                <form id="couponForm" class="profile-form">
+                    <div class="form-section">
+                        <h3>New Coupon</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="code">Coupon Code *</label>
+                                <input type="text" id="code" placeholder="e.g. SUMMER10" required
+                                    style="text-transform: uppercase;">
+                            </div>
+                            <div class="form-group">
+                                <label for="discountValue">Value *</label>
+                                <input type="number" id="discountValue" placeholder="e.g. 10" required min="0"
+                                    step="0.01">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="discountType">Type *</label>
+                                <select id="discountType">
+                                    <option value="PERCENTAGE">Percentage (%)</option>
+                                    <option value="FIXED">Fixed Amount</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="minPurchase">Min Purchase</label>
+                                <input type="number" id="minPurchase" placeholder="0" min="0" value="0">
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary" id="saveCouponBtn">
+                                + Add Coupon
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Coupons List -->
+            <div class="profile-preview-card" style="min-height: 400px; display: flex; flex-direction: column;">
+                <div class="profile-header">
+                    <h3>Active Coupons</h3>
+                </div>
+                <div id="couponsList" style="padding: var(--spacing-md); overflow-y: auto;">
+                    <!-- Coupons loaded here -->
+                </div>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>&copy; 2025 Receipt Generator. Create professional receipts for free.</p>
+        </footer>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="toast">
+        <span class="toast-message" id="toastMessage"></span>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+
+        document.addEventListener('DOMContentLoaded', loadCoupons);
+
+        document.getElementById('couponForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const code = document.getElementById('code').value.toUpperCase();
+            const discountValue = document.getElementById('discountValue').value;
+            const discountType = document.getElementById('discountType').value;
+            const minPurchase = document.getElementById('minPurchase').value;
+
+            try {
+                const response = await fetch(`${API_BASE}/api/coupons`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code, discount_type: discountType, discount_value: discountValue, min_purchase: minPurchase })
+                });
+
+                if (response.ok) {
+                    showToast('Coupon added successfully', 'success');
+                    document.getElementById('couponForm').reset();
+                    loadCoupons();
+                } else {
+                    const error = await response.json();
+                    showToast(error.error || 'Failed to add coupon', 'error');
+                }
+            } catch (error) {
+                showToast('Failed to connect to server', 'error');
+            }
+        });
+
+        async function loadCoupons() {
+            try {
+                const response = await fetch(`${API_BASE}/api/coupons`);
+                const coupons = await response.json();
+                const container = document.getElementById('couponsList');
+
+                if (coupons.length === 0) {
+                    container.innerHTML = '<p style="text-align: center; color: var(--text-muted);">No coupons found.</p>';
+                    return;
+                }
+
+                container.innerHTML = coupons.map(coupon => `
+                    <div class="coupon-item" style="background: var(--bg-tertiary); padding: 10px; border-radius: 4px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border-color);">
+                        <div>
+                            <div style="font-weight: bold; color: var(--accent-primary);">${coupon.code}</div>
+                            <div style="font-size: 0.8rem;">
+                                ${coupon.discount_type === 'PERCENTAGE' ? `${coupon.discount_value}% OFF` : `Flat ${coupon.discount_value} OFF`}
+                                ${parseFloat(coupon.min_purchase) > 0 ? `(Min: ${coupon.min_purchase})` : ''}
+                            </div>
+                        </div>
+                        <button onclick="deleteCoupon(${coupon.id})" style="background: none; border: none; color: #ef4444; cursor: pointer;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                        </button>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading coupons:', error);
+            }
+        }
+
+        async function deleteCoupon(id) {
+            if (!confirm('Delete this coupon?')) return;
+            try {
+                await fetch(`${API_BASE}/api/coupons/${id}`, { method: 'DELETE' });
+                loadCoupons();
+            } catch (error) {
+                console.error('Delete failed:', error);
+            }
+        }
+
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            toastMessage.textContent = message;
+            toast.className = `toast show ${type}`;
+            setTimeout(() => {
+                toast.className = 'toast';
+            }, 3000);
+        }
+    </script>
+</body>
+
+</html>
