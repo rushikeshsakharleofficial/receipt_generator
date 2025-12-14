@@ -28,7 +28,7 @@ services:
       MYSQL_USER: receipt_user
       MYSQL_PASSWORD: receipt_pass_2024
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
